@@ -48,7 +48,8 @@ char **read_dictionary(char *filename, int *size)
     while(fgets(line, 40, f) != NULL)
     {
         // Return pointer to array of strings
-        return ;
+        char *l = malloc(line);
+        return l;
         // Store length of the array in size
         char *s = malloc(strlen(line));
         free(s);
