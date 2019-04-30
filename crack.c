@@ -1,11 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-
 #include "md5.h"
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 const int PASS_LEN=20;        // Maximum any password will be
 const int HASH_LEN=33;        // Length of MD5 hash strings
+
+int file_length(char *filename)
+{
+    struct stat info;
+    if (stat(filename, &info) == -1) 
+    return -1;
+    else 
+    return info.st_size;
+}
 
 // Given a hash and a plaintext guess, return 1 if
 // the hash of the guess matches the given hash.
@@ -13,18 +23,20 @@ const int HASH_LEN=33;        // Length of MD5 hash strings
 int tryguess(char *hash, char *guess)
 {
     // Hash the guess using MD5
-    char *h = md5(guess, strlen(guess));
-    char *c = malloc(strlen(h));
+    char *hashguess = md5(guess, strlen(guess));
     // Compare the two hashes
-    if (h != hash)
+    if (strcmp(hash, hashguess) == 0)
+    {
+    return 1;
+    }
+    else
     {
     return 0;
     }
-    else
-    return 1;
     // Free any malloc'd memory
-    free(c);
+    free(hashguess);
 }
+
 // Read in the dictionary file and return the array of strings
 // and store the length of the array in size.
 // This function is responsible for opening the dictionary file,
@@ -32,30 +44,41 @@ int tryguess(char *hash, char *guess)
 // file.
 char **read_dictionary(char *filename, int *size)
 {
+    *size = file_length(filename);
+    char *p = malloc(*size);
     FILE *f = fopen(filename, "r");
-    if (f == NULL)
+    if (!f)
     {
         printf("Can't open %s for reading\n", filename);
         exit(1);
     }
-    *size = 0;
-    char line [40];
-    for (int i = 0; i < strlen(line); i++)
-    {
-        if (line[i] == '\n') size++;
-    }
-    // Reading in the file
-    while(fgets(line, 40, f) != NULL)
-    {
-        // Return pointer to array of strings
-        char *l = malloc(line);
-        return l;
-        // Store length of the array in size
-        char *s = malloc(strlen(line));
-        free(s);
-    }
-    // Close the file
+    fread(p, 1, *size, f);
     fclose(f);
+    int numpass = 0;
+    for (int i = 0; i < *size; i++)
+    {
+        if (p[i] == '\n')
+        {
+            numpass++;
+            p[i] = '\0';
+        }
+    }
+    char **pws = malloc(numpass * sizeof(char *));
+    pws[0] = p;
+    int j = 1;
+    for (int i = 0; i < *size-1; i++)
+    {
+        
+        if (p[i] == '\0')
+        {
+            pws[j] = &p[i+1];
+            j++;
+        }
+    } 
+    *size = numpass;
+    return pws;
+    free(pws);
+    free(p);
 }
 
 int main(int argc, char *argv[])
@@ -65,36 +88,31 @@ int main(int argc, char *argv[])
         printf("Usage: %s hash_file dict_file\n", argv[0]);
         exit(1);
     }
-
-    // Read the dictionary file into an array of strings.
-    char hash[40];
-    char word[40];
-    int dlen;
-    char **dict = read_dictionary("password.txt", &dlen);
-    // Open the hash file for reading.
-    FILE *h = fopen("hashes.txt", "r");
+    char hash[33];
+    int dlen; 
+    char **dict = read_dictionary(argv[2], &dlen);
+    FILE *h = fopen(argv[1], "r");
     if (!h)
     {
-        printf("Can't open hashes.txt for reading\n");
+        printf("Can't open %s for reading\n", argv[1]);
         exit(1);
     }
-    while (fgets(hash, 40, h) != NULL)
+    while (fgets(hash, 33, h) != NULL)
     {
-        hash[strlen(hash)-1] = '\0';
+        for (int i = 0; i < dlen; i++)
+        {
+            if (tryguess(hash, dict[i]) == 1)
+            {
+                printf("%s %s\n", hash, dict[i]);
+            }
+        }
         
     }
-    
-    while(fgets(word, 40, dict) != NULL)
-    {
-        char *wordhash = md5(word, strlen(word));
-        word[strlen(word)-1] = '\0';
-        if (strcmp(wordhash, hash) == 0)
-        {
-        printf("%s %s\n", hash, word);
-        }
-    }
     fclose(h);
-    // For each hash, try every entry in the dictionary.
-    // Print the matching dictionary entry.
-    // Need two nested loops.
 }
+// Read the dictionary file into an array of strings.
+// Open the hash file for reading.
+// For each hash, try every entry in the dictionary.
+// Print the matching dictionary entry.
+// Need two nested loops.
+
